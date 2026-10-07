@@ -2,11 +2,12 @@ import math
 import os
 import sqlite3
 from datetime import datetime, timezone
+from API import api_key
 
 from flask import Flask, jsonify, request, send_from_directory
 
 DB_PATH = os.environ.get("DB_PATH", "dosimeter.db")
-API_KEY = os.environ.get("API_KEY", "change-me")
+API_KEY = os.environ.get("API_KEY", api_key)
 # Kalibrace: kolik µSv/h odpovídá 1 cpm gama. 0 = dávka se nezobrazuje.
 CPM_TO_USVH = float(os.environ.get("CPM_TO_USVH", "0"))
 
