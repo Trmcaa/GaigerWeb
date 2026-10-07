@@ -5,9 +5,8 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, send_from_directory
 
-DB_PATH = os.environ.get("DB_PATH", "dosimeter.db")
-API_KEY = os.environ.get("API_KEY", "change-me")
-# Kalibrace: kolik µSv/h odpovídá 1 cpm gama. 0 = dávka se nezobrazuje.
+DB_PATH = os.environ.get("DB_PATH", "dosimeter_test.db")
+API_KEY = os.environ.get("API_KEY", "heslicko")
 CPM_TO_USVH = float(os.environ.get("CPM_TO_USVH", "0"))
 
 app = Flask(__name__, static_folder="static")
