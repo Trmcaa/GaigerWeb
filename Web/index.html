@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dozimetr β/γ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#e9eff1;--ink:#14212b;--mute:#5b6b76;--line:#c5d1d7;--panel:#f7fafb;--gamma:#1f6f8b;--beta:#e08a1e}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1a21;--ink:#e6eef2;--mute:#8fa3af;--line:#2a3b46;--panel:#16252e;--gamma:#4fb0cf;--beta:#f0a43c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 24px}
+.hero{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px}
+.hero .big{font-size:clamp(2.2rem,8vw,3.6rem);font-weight:700;line-height:1.1}
+.hero .big small{font-size:1rem;font-weight:400;color:var(--mute)}
+.split{display:flex;height:22px;border-radius:3px;overflow:hidden;background:var(--line);margin:14px 0 8px}
+.split i{display:block;height:100%}
+.legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--mute);font-size:.9rem}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.bar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:28px 0 12px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mute);gap:4px}
+input,button{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)}
+button{cursor:pointer;font-weight:700}
+button:hover{border-color:var(--ink)}
+:focus-visible{outline:3px solid var(--gamma);outline-offset:2px}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;height:300px}
+.tbl{overflow-x:auto;margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.85rem;color:var(--mute);font-weight:400}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.tag{font-weight:700}.tag.b{color:var(--beta)}.tag.g{color:var(--gamma)}
+.mini{display:flex;width:90px;height:8px;border-radius:2px;overflow:hidden;background:var(--line)}
+.empty{padding:24px;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+<h1>Dozimetr β/γ</h1>
+<p class="sub">Naměřené hodnoty ze zařízení. Beta se počítá jako rozdíl měření bez clony a s clonou.</p>
+
+<section class="hero" aria-live="polite">
+  <div class="big" id="total">–</div>
+  <div class="split" id="split"></div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--gamma)"></span>gama <b id="g">–</b></span>
+    <span><span class="dot" style="background:var(--beta)"></span>beta <b id="b">–</b></span>
+    <span id="when"></span>
+  </div>
+</section>
+
+<div class="bar">
+  <label>Od <input type="date" id="from"></label>
+  <label>Do <input type="date" id="to"></label>
+  <button id="apply">Zobrazit</button>
+  <button id="csv">Stáhnout CSV</button>
+</div>
+
+<div class="chart"><canvas id="chart" aria-label="Graf gama a beta v čase" role="img"></canvas></div>
+
+<div class="tbl"><table>
+  <thead><tr><th>Datum a čas</th><th>Délka</th><th>Typ záření</th><th>Podíl beta</th>
+  <th class="n">γ (cpm)</th><th class="n">β (cpm)</th><th class="n">± (cpm)</th><th class="n">µSv/h</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table><div class="empty" id="empty" hidden>Žádná měření v tomto období. Pošli první měření z dozimetru nebo změň datum.</div></div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = d => new Date(d).toLocaleString("cs-CZ");
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let rows = [], chart;
+
+async function load() {
+  const p = new URLSearchParams();
+  if ($("#from").value) p.set("from", $("#from").value);
+  if ($("#to").value) p.set("to", $("#to").value);
+  rows = await (await fetch("/api/measurements?" + p)).json();
+  render();
+}
+
+function render() {
+  const last = rows[0];
+  if (last) {
+    $("#total").innerHTML = last.total_cpm.toFixed(1) + " <small>cpm celkem</small>";
+    const g = last.total_cpm ? 100 - last.beta_share * 100 : 100;
+    $("#split").innerHTML = `<i style="width:${g}%;background:var(--gamma)"></i><i style="width:${100 - g}%;background:var(--beta)"></i>`;
+    $("#g").textContent = last.gamma_cpm.toFixed(1) + " cpm";
+    $("#b").textContent = last.beta_cpm.toFixed(1) + " cpm";
+    $("#when").textContent = "poslední měření " + fmt(last.ts);
+  }
+  $("#empty").hidden = rows.length > 0;
+  $("#rows").innerHTML = rows.map(r => `<tr>
+    <td>${fmt(r.ts)}</td><td>${Math.round(r.duration_s)} s</td>
+    <td><span class="tag ${r.type === "gamma" ? "g" : "b"}">${r.type === "gamma" ? "gama" : "beta + gama"}</span></td>
+    <td><div class="mini"><i style="width:${(1 - r.beta_share) * 100}%;background:var(--gamma)"></i><i style="width:${r.beta_share * 100}%;background:var(--beta)"></i></div></td>
+    <td class="n">${r.gamma_cpm.toFixed(1)}</td><td class="n">${r.beta_cpm.toFixed(1)}</td>
+    <td class="n">${r.sigma_cpm.toFixed(1)}</td><td class="n">${r.dose_usvh ?? "–"}</td></tr>`).join("");
+
+  const asc = [...rows].reverse();
+  const data = {
+    labels: asc.map(r => fmt(r.ts)),
+    datasets: [
+      {label: "gama (cpm)", data: asc.map(r => r.gamma_cpm), borderColor: css("--gamma"), backgroundColor: css("--gamma") + "99", fill: true, tension: .25},
+      {label: "beta (cpm)", data: asc.map(r => r.beta_cpm), borderColor: css("--beta"), backgroundColor: css("--beta") + "99", fill: true, tension: .25},
+    ],
+  };
+  if (chart) chart.destroy();
+  chart = new Chart($("#chart"), {type: "line", data, options: {
+    maintainAspectRatio: false, animation: false, pointRadius: 2,
+    scales: {y: {stacked: true, beginAtZero: true, title: {display: true, text: "cpm"}}, x: {ticks: {maxTicksLimit: 6}}},
+    plugins: {legend: {labels: {color: css("--ink")}}},
+  }});
+}
+
+$("#apply").onclick = load;
+$("#csv").onclick = () => {
+  const head = "ts,duration_s,type,total_cpm,gamma_cpm,beta_cpm,sigma_cpm,beta_share,dose_usvh";
+  const body = rows.map(r => [r.ts, r.duration_s, r.type, r.total_cpm, r.gamma_cpm, r.beta_cpm, r.sigma_cpm, r.beta_share, r.dose_usvh ?? ""].join(","));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([[head, ...body].join("\n")], {type: "text/csv"}));
+  a.download = "dozimetr.csv"; a.click();
+};
+load(); setInterval(load, 30000);
+</script>
+</body>
+</html>
