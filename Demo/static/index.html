@@ -284,11 +284,19 @@ function render() {
 
 $("#apply").onclick = load;
 $("#csv").onclick = () => {
-  const head = "ts,duration_s,type,total_cpm,gamma_cpm,beta_cpm,sigma_cpm,beta_share,dose_usvh";
-  const body = rows.map(r => [r.ts, r.duration_s, r.type, r.total_cpm, r.gamma_cpm, r.beta_cpm, r.sigma_cpm, r.beta_share, r.dose_usvh ?? ""].join(","));
+  // Excel (CZ): středník jako oddělovač, desetinná čárka, UTF-8 s BOM, konce řádků CRLF
+  const pad = n => String(n).padStart(2, "0");
+  const dt = s => { const d = new Date(s); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  const num = (v, d = 1) => v == null ? "" : Number(v).toFixed(d).replace(".", ",");
+  const esc = v => /[;"\r\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const head = ["Datum a čas", "Zařízení", "Délka (s)", "Typ záření", "Celkem (cpm)", "Gama (cpm)", "Beta (cpm)", "Nejistota ± (cpm)", "Podíl beta (%)", "Dávka (µSv/h)"];
+  const lines = [...rows].reverse().map(r => [
+    dt(r.ts), r.device_id, num(r.duration_s, 0), r.type === "gamma" ? "gama" : "beta + gama",
+    num(r.total_cpm), num(r.gamma_cpm), num(r.beta_cpm), num(r.sigma_cpm), num(r.beta_share * 100), num(r.dose_usvh, 3),
+  ].map(esc).join(";"));
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([[head, ...body].join("\n")], {type: "text/csv"}));
-  a.download = "dozimetr.csv"; a.click();
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + [head.map(esc).join(";"), ...lines].join("\r\n")], {type: "text/csv;charset=utf-8"}));
+  a.download = `dozimetr_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
 };
 load(); setInterval(load, 30000);
 </script>

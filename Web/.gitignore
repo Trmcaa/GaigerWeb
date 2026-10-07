@@ -1,4 +1,5 @@
 __pycache__/
 *.db
+!demo/*.db
 .venv/
 .env
